@@ -645,18 +645,21 @@ function downloadFile(content, filename, mime) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
+// Exporte TOUTE la bibliothèque (tous les formulaires enregistrés) en un seul fichier
 function exportJson() {
+  const lib = getLibrary();
+  if (!lib.length) { toast('Aucun formulaire enregistré à exporter'); return; }
   const payload = {
     schemaVersion: 1,
-    title: state.title,
-    description: state.description,
-    fields: state.fields,
+    type: 'library',
+    forms: lib,
     exportedAt: new Date().toISOString(),
   };
-  downloadFile(JSON.stringify(payload, null, 2), slugify(state.title) + '.json', 'application/json');
-  toast('JSON exporté');
+  downloadFile(JSON.stringify(payload, null, 2), 'mes-formulaires.json', 'application/json');
+  toast(lib.length + ' formulaire(s) exporté(s)');
 }
 
+// Importe une bibliothèque : fusionne dans les formulaires enregistrés (par id)
 function importJson(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -664,27 +667,50 @@ function importJson(e) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      const fields = Array.isArray(data.fields) ? data.fields : null;
-      if (!fields) throw new Error('Champ « fields » manquant ou invalide.');
-      // Normalisation : garantit les propriétés attendues et des id uniques
-      state = {
-        id: null,
-        title: typeof data.title === 'string' ? data.title : 'Formulaire importé',
-        description: typeof data.description === 'string' ? data.description : '',
-        fields: fields.map(normalizeField).filter(Boolean),
-      };
-      save();
-      setMode('edit');
-      render();
-      toast('Formulaire importé ✅');
+      // Accepte { forms: [...] }, un tableau brut, ou un formulaire unique { fields: [...] }
+      let raw;
+      if (Array.isArray(data.forms)) raw = data.forms;
+      else if (Array.isArray(data)) raw = data;
+      else if (Array.isArray(data.fields)) raw = [data];
+      else throw new Error('Format non reconnu (« forms » attendu).');
+
+      const lib = getLibrary();
+      const byId = new Map(lib.map(f => [f.id, f]));
+      let added = 0, updated = 0;
+      raw.forEach(r => {
+        const form = normalizeForm(r);
+        if (!form) return;
+        if (byId.has(form.id)) {
+          Object.assign(byId.get(form.id), form); // met à jour l'existant (même id)
+          updated++;
+        } else {
+          byId.set(form.id, form);
+          lib.unshift(form);
+          added++;
+        }
+      });
+      setLibrary(lib);
+      openLibrary();
+      toast(`Import : ${added} ajouté(s), ${updated} mis à jour`);
     } catch (err) {
       toast('Fichier JSON invalide');
-      console.error('Import JSON:', err);
+      console.error('Import bibliothèque:', err);
     } finally {
       e.target.value = ''; // permet de réimporter le même fichier
     }
   };
   reader.readAsText(file);
+}
+
+function normalizeForm(raw) {
+  if (!raw || !Array.isArray(raw.fields)) return null;
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : uid(),
+    title: typeof raw.title === 'string' ? raw.title : 'Formulaire importé',
+    description: typeof raw.description === 'string' ? raw.description : '',
+    fields: raw.fields.map(normalizeField).filter(Boolean),
+    savedAt: typeof raw.savedAt === 'number' ? raw.savedAt : Date.now(),
+  };
 }
 
 function normalizeField(f) {
