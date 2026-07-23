@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Générateur d'interfaces — Form Builder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◧</span>
+      <span>Générateur d'interfaces</span>
+    </div>
+
+    <div class="mode-switch" role="tablist" aria-label="Mode">
+      <button id="mode-edit" class="mode-btn active" role="tab">✎ Édition</button>
+      <button id="mode-preview" class="mode-btn" role="tab">▶ Aperçu</button>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="btn-save" class="btn ghost">💾 Enregistrer</button>
+      <button id="btn-library" class="btn ghost">📁 Mes formulaires</button>
+      <button id="btn-export" class="btn ghost">⇩ Exporter HTML</button>
+      <button id="btn-new" class="btn ghost">✚ Nouveau</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Palette des champs -->
+    <aside class="palette" id="palette">
+      <h2>Ajouter un champ</h2>
+      <div class="palette-list" id="palette-list"></div>
+      <p class="hint">Clique pour ajouter le champ en bas du formulaire.</p>
+    </aside>
+
+    <!-- Zone de travail -->
+    <section class="canvas-wrap">
+      <div class="form-meta" id="form-meta">
+        <input id="form-title" class="form-title-input" type="text" placeholder="Titre du formulaire" />
+        <textarea id="form-desc" class="form-desc-input" rows="1" placeholder="Description (optionnelle)"></textarea>
+      </div>
+
+      <div id="canvas" class="canvas"></div>
+
+      <div id="empty-state" class="empty-state">
+        <p>Aucun champ pour l'instant.</p>
+        <p class="hint">Utilise la palette à gauche pour composer ton interface.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Overlay bibliothèque -->
+  <div id="library-overlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Mes formulaires</h3>
+        <button class="icon-btn" id="library-close">✕</button>
+      </div>
+      <div id="library-list" class="library-list"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
