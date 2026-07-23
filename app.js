@@ -481,6 +481,7 @@ function bindTopbar() {
   $('#btn-export-json').addEventListener('click', exportJson);
   $('#btn-import-json').addEventListener('click', () => $('#import-input').click());
   $('#import-input').addEventListener('change', importJson);
+  $('#btn-duplicate').addEventListener('click', duplicateCurrent);
   $('#btn-library').addEventListener('click', openLibrary);
   $('#library-close').addEventListener('click', closeLibrary);
   $('#library-overlay').addEventListener('click', e => { if (e.target.id === 'library-overlay') closeLibrary(); });
@@ -503,6 +504,20 @@ function bindMeta() {
 function autoGrow(el) {
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
+}
+
+function duplicateCurrent() {
+  if (!state.fields.length && !state.title.trim()) { toast('Rien à dupliquer'); return; }
+  state = {
+    id: null, // copie non enregistrée : « Enregistrer » créera une nouvelle entrée
+    title: (state.title || 'Sans titre') + ' (copie)',
+    description: state.description,
+    fields: state.fields.map(f => ({ ...f, id: uid(), options: [...f.options] })),
+  };
+  save();
+  setMode('edit');
+  render();
+  toast('Copie créée — tu édites maintenant le duplicata');
 }
 
 function newForm() {
@@ -566,8 +581,9 @@ function openLibrary() {
     main.innerHTML = `<div class="li-name">${escapeHtml(f.title || 'Sans titre')}</div>
       <div class="li-meta">${(f.fields || []).length} champ(s) · ${date.toLocaleDateString('fr-FR')} ${date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}</div>`;
     main.addEventListener('click', () => loadFromLibrary(f.id));
+    const dup = iconBtn('⧉', 'Dupliquer', (e) => { e.stopPropagation(); duplicateInLibrary(f.id); });
     const del = iconBtn('🗑', 'Supprimer', (e) => { e.stopPropagation(); deleteFromLibrary(f.id); }, false, 'danger');
-    item.append(main, del);
+    item.append(main, dup, del);
     list.appendChild(item);
   });
   $('#library-overlay').classList.remove('hidden');
@@ -585,6 +601,21 @@ function loadFromLibrary(id) {
   closeLibrary();
   setMode('edit');
   toast('Formulaire chargé');
+}
+
+function duplicateInLibrary(id) {
+  const lib = getLibrary();
+  const src = lib.find(x => x.id === id);
+  if (!src) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = uid();
+  copy.title = (src.title || 'Sans titre') + ' (copie)';
+  copy.savedAt = Date.now();
+  copy.fields = (copy.fields || []).map(f => ({ ...f, id: uid() })); // nouveaux id de champs
+  lib.unshift(copy);
+  setLibrary(lib);
+  openLibrary();
+  toast('Formulaire dupliqué');
 }
 
 function deleteFromLibrary(id) {
@@ -608,8 +639,10 @@ function downloadFile(content, filename, mime) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a); // requis par Firefox/Safari pour déclencher le téléchargement
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
 function exportJson() {
@@ -672,13 +705,7 @@ function normalizeField(f) {
    ============================================================ */
 function exportHtml() {
   const html = generateStandaloneHtml();
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = (state.title || 'formulaire').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.html';
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadFile(html, slugify(state.title) + '.html', 'text/html');
   toast('HTML exporté');
 }
 
