@@ -478,6 +478,9 @@ function bindTopbar() {
   $('#btn-new').addEventListener('click', newForm);
   $('#btn-save').addEventListener('click', () => { saveToLibrary(); });
   $('#btn-export').addEventListener('click', exportHtml);
+  $('#btn-export-json').addEventListener('click', exportJson);
+  $('#btn-import-json').addEventListener('click', () => $('#import-input').click());
+  $('#import-input').addEventListener('change', importJson);
   $('#btn-library').addEventListener('click', openLibrary);
   $('#library-close').addEventListener('click', closeLibrary);
   $('#library-overlay').addEventListener('click', e => { if (e.target.id === 'library-overlay') closeLibrary(); });
@@ -590,6 +593,78 @@ function deleteFromLibrary(id) {
   if (state.id === id) state.id = null;
   openLibrary();
   toast('Formulaire supprimé');
+}
+
+/* ============================================================
+   Export / Import JSON  (format portable — idéal Vercel / Git)
+   ============================================================ */
+function slugify(str) {
+  return (str || 'formulaire').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'formulaire';
+}
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportJson() {
+  const payload = {
+    schemaVersion: 1,
+    title: state.title,
+    description: state.description,
+    fields: state.fields,
+    exportedAt: new Date().toISOString(),
+  };
+  downloadFile(JSON.stringify(payload, null, 2), slugify(state.title) + '.json', 'application/json');
+  toast('JSON exporté');
+}
+
+function importJson(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const fields = Array.isArray(data.fields) ? data.fields : null;
+      if (!fields) throw new Error('Champ « fields » manquant ou invalide.');
+      // Normalisation : garantit les propriétés attendues et des id uniques
+      state = {
+        id: null,
+        title: typeof data.title === 'string' ? data.title : 'Formulaire importé',
+        description: typeof data.description === 'string' ? data.description : '',
+        fields: fields.map(normalizeField).filter(Boolean),
+      };
+      save();
+      setMode('edit');
+      render();
+      toast('Formulaire importé ✅');
+    } catch (err) {
+      toast('Fichier JSON invalide');
+      console.error('Import JSON:', err);
+    } finally {
+      e.target.value = ''; // permet de réimporter le même fichier
+    }
+  };
+  reader.readAsText(file);
+}
+
+function normalizeField(f) {
+  if (!f || !FIELD_TYPES[f.type]) return null;
+  return {
+    id: typeof f.id === 'string' && f.id ? f.id : uid(),
+    type: f.type,
+    label: typeof f.label === 'string' ? f.label : defaultLabel(f.type),
+    description: typeof f.description === 'string' ? f.description : '',
+    placeholder: typeof f.placeholder === 'string' ? f.placeholder : '',
+    required: !!f.required,
+    options: Array.isArray(f.options) ? f.options.map(String) : [],
+  };
 }
 
 /* ============================================================
