@@ -31,6 +31,8 @@ let uid = () => 'f' + Math.random().toString(36).slice(2, 9);
 
 const LS_CURRENT = 'ig_current_form';
 const LS_LIBRARY = 'ig_form_library';
+const LS_SORT = 'ig_library_sort';
+const LS_FRAME = 'ig_frame_size';
 
 /* ---------- Raccourcis DOM ---------- */
 const $ = (sel) => document.querySelector(sel);
@@ -130,12 +132,8 @@ function render() {
   const descEl = $('#form-desc');
   descEl.value = state.description;
   autoGrow(descEl);
-  // En aperçu : champs meta non éditables et description masquée si vide
-  const readonly = currentMode === 'preview';
-  $('#form-title').readOnly = readonly;
-  descEl.readOnly = readonly;
-  descEl.classList.toggle('hidden', readonly && !state.description.trim());
-  $('#form-title').classList.toggle('hidden', readonly && !state.title.trim());
+  // En aperçu : le bloc titre/description est rendu à l'intérieur du cadre de capture
+  $('#form-meta').classList.toggle('hidden', currentMode === 'preview');
 
   canvas.innerHTML = '';
   emptyState.classList.toggle('hidden', state.fields.length > 0 || currentMode === 'preview');
@@ -291,6 +289,48 @@ function refreshBadgeMirror() { /* placeholder for potential live label mirror *
    Aperçu interactif
    ============================================================ */
 function renderPreviewForm() {
+  const stage = document.createElement('div');
+  stage.className = 'preview-stage';
+
+  // --- Barre de contrôle (HORS cadre : n'apparaît pas sur la capture) ---
+  const currentSize = localStorage.getItem(LS_FRAME) || 'desktop';
+  const controls = document.createElement('div');
+  controls.className = 'frame-controls';
+  [['mobile', '📱 Mobile'], ['tablet', '📲 Tablette'], ['desktop', '🖥 Bureau']].forEach(([val, label]) => {
+    const b = document.createElement('button');
+    b.className = 'btn ghost frame-size-btn' + (val === currentSize ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => { localStorage.setItem(LS_FRAME, val); render(); });
+    controls.appendChild(b);
+  });
+  stage.appendChild(controls);
+
+  // --- Cadre de capture (dimensions fixes, chrome de fenêtre) ---
+  const frame = document.createElement('div');
+  frame.className = 'capture-frame';
+  frame.dataset.size = currentSize;
+
+  const bar = document.createElement('div');
+  bar.className = 'frame-bar';
+  bar.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>` +
+    `<span class="frame-title">${escapeHtml(state.title || '')}</span>`;
+  frame.appendChild(bar);
+
+  const body = document.createElement('div');
+  body.className = 'frame-body';
+  if (state.title.trim()) {
+    const h = document.createElement('h1');
+    h.className = 'pv-form-title';
+    h.textContent = state.title;
+    body.appendChild(h);
+  }
+  if (state.description.trim()) {
+    const p = document.createElement('p');
+    p.className = 'pv-form-desc';
+    p.textContent = state.description;
+    body.appendChild(p);
+  }
+
   const form = document.createElement('form');
   form.className = 'preview-form';
   form.noValidate = false;
@@ -318,7 +358,10 @@ function renderPreviewForm() {
     result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
-  return form;
+  body.appendChild(form);
+  frame.appendChild(body);
+  stage.appendChild(frame);
+  return stage;
 }
 
 function renderPreviewField(field) {
@@ -484,6 +527,9 @@ function bindTopbar() {
   $('#btn-duplicate').addEventListener('click', duplicateCurrent);
   $('#btn-library').addEventListener('click', openLibrary);
   $('#library-close').addEventListener('click', closeLibrary);
+  const sortSel = $('#library-sort');
+  sortSel.value = localStorage.getItem(LS_SORT) || 'recent';
+  sortSel.addEventListener('change', e => { localStorage.setItem(LS_SORT, e.target.value); openLibrary(); });
   $('#library-overlay').addEventListener('click', e => { if (e.target.id === 'library-overlay') closeLibrary(); });
 }
 
@@ -565,8 +611,23 @@ function saveToLibrary() {
   toast('Formulaire enregistré');
 }
 
+function sortLibrary(lib, mode) {
+  const arr = lib.slice();
+  const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '', 'fr', { sensitivity: 'base' });
+  const byDate = (a, b) => (a.savedAt || 0) - (b.savedAt || 0);
+  switch (mode) {
+    case 'oldest': arr.sort(byDate); break;
+    case 'az':     arr.sort(byTitle); break;
+    case 'za':     arr.sort((a, b) => byTitle(b, a)); break;
+    case 'recent':
+    default:       arr.sort((a, b) => byDate(b, a)); break;
+  }
+  return arr;
+}
+
 function openLibrary() {
-  const lib = getLibrary();
+  const sortMode = localStorage.getItem(LS_SORT) || 'recent';
+  const lib = sortLibrary(getLibrary(), sortMode);
   const list = $('#library-list');
   list.innerHTML = '';
   if (!lib.length) {

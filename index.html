@@ -59,7 +59,16 @@
     <div class="modal">
       <div class="modal-head">
         <h3>Mes formulaires</h3>
-        <button class="icon-btn" id="library-close">✕</button>
+        <div class="modal-head-right">
+          <label class="sort-label" for="library-sort">Trier :</label>
+          <select id="library-sort" class="sort-select">
+            <option value="recent">Modifié (récent)</option>
+            <option value="oldest">Modifié (ancien)</option>
+            <option value="az">Alphabétique (A→Z)</option>
+            <option value="za">Alphabétique (Z→A)</option>
+          </select>
+          <button class="icon-btn" id="library-close">✕</button>
+        </div>
       </div>
       <div id="library-list" class="library-list"></div>
     </div>
